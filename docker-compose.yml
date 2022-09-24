@@ -1,0 +1,100 @@
+version: '3'
+
+volumes:
+  mariadb_medium:
+    driver: local
+  postgres_medium:
+    driver: local
+  kafka_medium:
+    driver: local
+
+services:
+  api-gateway:
+    ports:
+      - '8000:8000'
+    build:
+      context: api_gateway
+    working_dir: /var/www/api_gateway
+    volumes:
+      - ./api_gateway:/var/www/api_gateway
+    networks:
+      shopnetwork:
+
+  catalog-service:
+    build:
+      context: catalog_service
+    working_dir: /var/www/catalog_service
+    volumes:
+      - ./catalog_service:/var/www/catalog_service
+    depends_on:
+      - catalogdb
+    networks:
+      shopnetwork:
+
+  order-service:
+    build:
+      context: order_service
+    working_dir: /var/www/order_service
+    volumes:
+      - ./order_service:/var/www/order_service
+    depends_on:
+      - orderdb
+    networks:
+      shopnetwork:
+
+  catalogdb:
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_password
+    volumes:
+      - postgres_medium:/opt/postgres_medium
+    networks:
+      shopnetwork:
+
+  orderdb:
+    image: mariadb:latest
+    ports:
+      - "3306:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: toor
+      MARIADB_DATABASE: orderdb
+    volumes:
+      - mariadb_medium:/opt/mariadb_medium
+    networks:
+      shopnetwork:
+
+  kafka:
+    image: bitnami/kafka
+    ports:
+      - '9093:9093'
+    volumes:
+      - kafka_medium:/bitnami/kafka
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9092,EXTERNAL://localhost:9093
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    networks:
+      shopnetwork:
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: 'bitnami/zookeeper:latest'
+    ports:
+      - '2181:2181'
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      shopnetwork:
+
+networks:
+  shopnetwork:
+    driver: bridge
